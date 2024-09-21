@@ -23,6 +23,7 @@
 
 FrontEnd::FrontEnd(System* system_ptr) :
     system_ptr_(system_ptr) {
+        
     SetLidarPoseInformation();
     InitMatcher();
 }
@@ -115,12 +116,54 @@ void FrontEnd::SetLidarPoseInformation() {
     lidar_pose_info_.block<3, 3>(0, 0) = Mat3d::Identity() * 1.0 / std::pow(lidar_rot_std, 2.0);
     lidar_pose_info_.block<3, 3>(3, 3) = Mat3d::Identity() * 1.0 / std::pow(lidar_posi_std, 2.0);
 }
+bool FrontEnd::GetTransformWithTF(const std::string &source_frame,
+                        const std::string &target_frame, ros::Time time,
+                        tf::Transform &out_transform) {
+  geometry_msgs::TransformStamped transform;
+  try {
+    transform = tf_buffer_.lookupTransform(source_frame, target_frame, time);
+  } catch (tf2::TransformException &ex) {
+    ROS_WARN_THROTTLE(10, "GetTransformWithTF error: %s", ex.what());
+    return false;
+  }
+  tf::Transform tf_transform(tf::Quaternion(transform.transform.rotation.x,
+                                            transform.transform.rotation.y,
+                                            transform.transform.rotation.z,
+                                            transform.transform.rotation.w),
+
+                             tf::Vector3(transform.transform.translation.x,
+                                         transform.transform.translation.y,
+                                         transform.transform.translation.z));
+  out_transform = tf_transform;
+
+  return true;
+}
+
 
 Mat4d FrontEnd::InitOdometer() {
     Eigen::Quaterniond q_curr = curr_cloud_cluster_ptr_->imu_data_.back().orientation_;
-
     Mat4d init_pose = Mat4d::Identity();
+    tf::Transform tf_base_to_lidar;
+    if (GetTransformWithTF(kRosBaseLinkFrameID, kRosLidarFrameID, ros::Time(0),
+                           tf_base_to_lidar)) {
+        // Extract translation and rotation
+        tf::Vector3 translation = tf_base_to_lidar.getOrigin();
+        tf::Quaternion rotation = tf_base_to_lidar.getRotation();
+
+        // Set the rotation part (convert tf::Quaternion to Eigen::Matrix3d)
+        Eigen::Quaterniond eigen_quat(rotation.w(), rotation.x(), rotation.y(), rotation.z());
+        Eigen::Matrix3d eigen_rotation = eigen_quat.toRotationMatrix();
+        init_pose.block<3, 3>(0, 0) = eigen_rotation;  // Top-left 3x3 block is the rotation
+
+        // Set the translation part
+        init_pose(0, 3) = translation.x();
+        init_pose(1, 3) = translation.y();
+        init_pose(2, 3) = translation.z();
+    }
+    else {
+    
     init_pose.block<3, 3>(0, 0) = q_curr.matrix();
+    }
 
     if (ConfigParameters::Instance().registration_and_searcher_mode_ == kLoamFull_KdTree) {
         PCLPointCloudXYZI transformed_corner;
@@ -159,7 +202,7 @@ Mat4d FrontEnd::InitOdometer() {
 
 void FrontEnd::Run() {
     LOG(INFO) << "\033[1;32m----> FrontEnd Started.\033[0m";
-
+    tf2_ros::TransformListener tfListener(tf_buffer_);
     while (ros::ok()) {
         {
             std::unique_lock<std::mutex> lock(system_ptr_->mutex_cloud_cluster_deque_);

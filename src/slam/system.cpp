@@ -832,14 +832,42 @@ void System::PublishMappingFrameCloud(const Frame::Ptr& frame, const Mat4d& pose
     }
 }
 
-void System::PublishTF(const Mat4d& pose, TimeStampUs timestamp) {
-    const Eigen::Quaterniond q(pose.block<3, 3>(0, 0));
-    const Vec3d& p = pose.block<3, 1>(0, 3);
+void System::PublishTF(const Eigen::Matrix4d& pose_map_to_lidar, TimeStampUs timestamp) {
+    // Get base_link->lidar transform from the TF tree
+    tf::StampedTransform tf_base_to_lidar;
+    
+    if(front_end_ptr_->GetTransformWithTF(kRosBaseLinkFrameID, kRosLidarFrameID, ros::Time(0), tf_base_to_lidar)==false){
+        return ;
+    }
 
+
+    // Convert tf_base_to_lidar to Eigen::Matrix4d
+    Eigen::Matrix4d base_to_lidar;
+    tf::Vector3 t_base_to_lidar = tf_base_to_lidar.getOrigin();
+    tf::Quaternion q_base_to_lidar = tf_base_to_lidar.getRotation();
+    Eigen::Quaterniond eigen_q_base_to_lidar(q_base_to_lidar.w(), q_base_to_lidar.x(), q_base_to_lidar.y(), q_base_to_lidar.z());
+    Eigen::Matrix3d rotation_base_to_lidar = eigen_q_base_to_lidar.toRotationMatrix();
+    base_to_lidar.setIdentity();
+    base_to_lidar.block<3, 3>(0, 0) = rotation_base_to_lidar;
+    base_to_lidar.block<3, 1>(0, 3) = Eigen::Vector3d(t_base_to_lidar.x(), t_base_to_lidar.y(), t_base_to_lidar.z());
+
+    // Compute map->base_link by multiplying map->lidar with inverse of base_link->lidar
+    Eigen::Matrix4d pose_map_to_base = pose_map_to_lidar * base_to_lidar.inverse();
+
+    // Extract rotation and translation for map->base_link
+    Eigen::Quaterniond q_map_to_base(pose_map_to_base.block<3, 3>(0, 0));
+    Eigen::Vector3d p_map_to_base = pose_map_to_base.block<3, 1>(0, 3);
+
+    // Publish the map->base_link transformation
     tf_broadcaster_.sendTransform(
         tf::StampedTransform(
-            tf::Transform(tf::Quaternion(q.x(), q.y(), q.z(), q.w()), tf::Vector3(p.x(), p.y(), p.z())),
-            ros::Time(static_cast<double>(timestamp) * kMicroseconds2Seconds), kRosMapFrameID, kRosLidarFrameID
+            tf::Transform(
+                tf::Quaternion(q_map_to_base.x(), q_map_to_base.y(), q_map_to_base.z(), q_map_to_base.w()),
+                tf::Vector3(p_map_to_base.x(), p_map_to_base.y(), p_map_to_base.z())
+            ),
+            ros::Time(static_cast<double>(timestamp) * kMicroseconds2Seconds),
+            kRosMapFrameID,
+            kRosBaseLinkFrameID
         )
     );
 }

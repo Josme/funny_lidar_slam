@@ -111,3 +111,15 @@ if (build_unit_tests)
     enable_testing()
     add_subdirectory(test)
 endif ()
+
+install(TARGETS  funny_lidar_slam funny_lidar_slam_lib
+ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+install(DIRECTORY launch config
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
+

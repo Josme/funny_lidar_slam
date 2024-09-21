@@ -9,6 +9,7 @@
 #include "imu/pre_integration.h"
 #include "lidar/lidar_distortion_corrector.h"
 #include "registration/loam_point_to_plane_kdtree.h"
+#include <tf2_ros/transform_listener.h>
 
 #include <Eigen/Dense>
 
@@ -21,7 +22,9 @@ public:
     explicit FrontEnd(System* system_ptr);
 
     void Run();
-
+    bool GetTransformWithTF(const std::string &source_frame,
+                            const std::string &target_frame, ros::Time time,
+                            tf::Transform &out_transform);
 private:
     Mat4d InitOdometer();
 
@@ -60,6 +63,7 @@ private:
     System* system_ptr_ = nullptr;
 
     bool has_init_ = false;
+    tf2_ros::Buffer tf_buffer_;
 };
 
 #endif //FUNNY_LIDAR_SLAM_FRONTEND_H
