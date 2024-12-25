@@ -48,7 +48,7 @@ inline void PublishRosCloud(ros::Publisher &pub, const PCLPointCloudXYZI::Ptr &c
 
     sensor_msgs::PointCloud2 cloud_ros;
     pcl::toROSMsg(*cloud, cloud_ros);
-    cloud_ros.header.frame_id = kRosMapFrameID;
+    cloud_ros.header.frame_id = ConfigParameters::Instance().ros_map_frame_id_;
     cloud_ros.header.stamp = ros::Time::now();
     pub.publish(cloud_ros);
 }

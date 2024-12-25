@@ -3,6 +3,7 @@
     <rosparam file="$(find funny_lidar_slam)/config/mapping/config_mid_360.yaml" command="load"/>
 
     <node pkg="funny_lidar_slam" type="funny_lidar_slam" name="funny_lidar_slam" output="screen"/>
+    <node pkg='tf'  type='static_transform_publisher' name='base_link_to_scan' args='0 0 1.5 0 0 3.1415926 /base_link /livox_frame 10' />
 
     <arg name="rviz_config" default="$(find funny_lidar_slam)/launch/display.rviz"/>
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(arg rviz_config)" required="false"/>

@@ -127,6 +127,10 @@ void System::InitConfigParameters() {
     slam_mode_ = static_cast<SLAM_MODE>(temp);
 
     // lidar config parameters
+    node_handle_ptr_->param("ros_map_frame_id", config.ros_map_frame_id_, kRosMapFrameID);
+    node_handle_ptr_->param("ros_lidar_frame_id", config.ros_lidar_frame_id_, kRosLidarFrameID);
+    node_handle_ptr_->param("ros_base_link_frame_id", config.ros_base_link_frame_id_, kRosBaseLinkFrameID);
+
     node_handle_ptr_->param("lidar/lidar_sensor_type", config.lidar_sensor_type_, StringEmpty);
     node_handle_ptr_->param("lidar/lidar_point_jump_span", config.lidar_point_jump_span_, IntNaN);
     node_handle_ptr_->param("lidar/lidar_scan", config.lidar_scan_, IntNaN);
@@ -618,7 +622,7 @@ bool System::ProcessLocalizationResultCache() {
     pose_stamped.pose.position.x = t.x();
     pose_stamped.pose.position.y = t.y();
     pose_stamped.pose.position.z = t.z();
-    pose_stamped.header.frame_id = kRosMapFrameID;
+    pose_stamped.header.frame_id = ConfigParameters::Instance().ros_map_frame_id_;
     pose_stamped.header.stamp = UsToRosTime(nav_state_data->timestamp_);
     localization_path_.poses.emplace_back(std::move(pose_stamped));
 
@@ -723,7 +727,7 @@ void System::PerformLoopclosureOptimization() {
 
 void System::PublishLocalizationPath() {
     if (localization_path_pub_.getNumSubscribers() > 0) {
-        localization_path_.header.frame_id = kRosMapFrameID;
+        localization_path_.header.frame_id = ConfigParameters::Instance().ros_map_frame_id_;
         localization_path_.header.stamp = ros::Time::now();
         localization_path_pub_.publish(localization_path_);
     }
@@ -766,12 +770,12 @@ void System::PublishMappingKeyFramePath() {
             pose_stamped.pose.position.x = t.x();
             pose_stamped.pose.position.y = t.y();
             pose_stamped.pose.position.z = t.z();
-            pose_stamped.header.frame_id = kRosMapFrameID;
+            pose_stamped.header.frame_id = ConfigParameters::Instance().ros_map_frame_id_;
 
             path.poses.emplace_back(std::move(pose_stamped));
         }
 
-        path.header.frame_id = kRosMapFrameID;
+        path.header.frame_id = ConfigParameters::Instance().ros_map_frame_id_;
         path.header.stamp = ros::Time::now();
         mapping_keyframe_path_pub_.publish(path);
     }
@@ -835,46 +839,59 @@ void System::PublishMappingFrameCloud(const Frame::Ptr& frame, const Mat4d& pose
     }
 }
 
-void System::PublishTF(const Eigen::Matrix4d& pose_map_to_lidar, TimeStampUs timestamp) {
-    // Get base_link->lidar transform from the TF tree
-    tf::StampedTransform tf_base_to_lidar;
+// void System::PublishTF(const Eigen::Matrix4d& pose_map_to_lidar, TimeStampUs timestamp) {
+//     // Get base_link->lidar transform from the TF tree
+//     tf::StampedTransform tf_base_to_lidar;
     
-    if(front_end_ptr_->GetTransformWithTF(kRosBaseLinkFrameID, kRosLidarFrameID, ros::Time(0), tf_base_to_lidar)==false){
-        return ;
-    }
+//     if(front_end_ptr_->GetTransformWithTF(ConfigParameters::Instance().ros_base_link_frame_id_, ConfigParameters::Instance().ros_lidar_frame_id_, ros::Time(0), tf_base_to_lidar)==false){
+//         return ;
+//     }
 
 
-    // Convert tf_base_to_lidar to Eigen::Matrix4d
-    Eigen::Matrix4d base_to_lidar;
-    tf::Vector3 t_base_to_lidar = tf_base_to_lidar.getOrigin();
-    tf::Quaternion q_base_to_lidar = tf_base_to_lidar.getRotation();
-    Eigen::Quaterniond eigen_q_base_to_lidar(q_base_to_lidar.w(), q_base_to_lidar.x(), q_base_to_lidar.y(), q_base_to_lidar.z());
-    Eigen::Matrix3d rotation_base_to_lidar = eigen_q_base_to_lidar.toRotationMatrix();
-    base_to_lidar.setIdentity();
-    base_to_lidar.block<3, 3>(0, 0) = rotation_base_to_lidar;
-    base_to_lidar.block<3, 1>(0, 3) = Eigen::Vector3d(t_base_to_lidar.x(), t_base_to_lidar.y(), t_base_to_lidar.z());
+//     // Convert tf_base_to_lidar to Eigen::Matrix4d
+//     Eigen::Matrix4d base_to_lidar;
+//     tf::Vector3 t_base_to_lidar = tf_base_to_lidar.getOrigin();
+//     tf::Quaternion q_base_to_lidar = tf_base_to_lidar.getRotation();
+//     Eigen::Quaterniond eigen_q_base_to_lidar(q_base_to_lidar.w(), q_base_to_lidar.x(), q_base_to_lidar.y(), q_base_to_lidar.z());
+//     Eigen::Matrix3d rotation_base_to_lidar = eigen_q_base_to_lidar.toRotationMatrix();
+//     base_to_lidar.setIdentity();
+//     base_to_lidar.block<3, 3>(0, 0) = rotation_base_to_lidar;
+//     base_to_lidar.block<3, 1>(0, 3) = Eigen::Vector3d(t_base_to_lidar.x(), t_base_to_lidar.y(), t_base_to_lidar.z());
 
-    // Compute map->base_link by multiplying map->lidar with inverse of base_link->lidar
-    Eigen::Matrix4d pose_map_to_base = pose_map_to_lidar * base_to_lidar.inverse();
+//     // Compute map->base_link by multiplying map->lidar with inverse of base_link->lidar
+//     Eigen::Matrix4d pose_map_to_base = pose_map_to_lidar * base_to_lidar.inverse();
 
-    // Extract rotation and translation for map->base_link
-    Eigen::Quaterniond q_map_to_base(pose_map_to_base.block<3, 3>(0, 0));
-    Eigen::Vector3d p_map_to_base = pose_map_to_base.block<3, 1>(0, 3);
+//     // Extract rotation and translation for map->base_link
+//     Eigen::Quaterniond q_map_to_base(pose_map_to_base.block<3, 3>(0, 0));
+//     Eigen::Vector3d p_map_to_base = pose_map_to_base.block<3, 1>(0, 3);
 
-    // Publish the map->base_link transformation
+//     // Publish the map->base_link transformation
+//     tf_broadcaster_.sendTransform(
+//         tf::StampedTransform(
+//             tf::Transform(
+//                 tf::Quaternion(q_map_to_base.x(), q_map_to_base.y(), q_map_to_base.z(), q_map_to_base.w()),
+//                 tf::Vector3(p_map_to_base.x(), p_map_to_base.y(), p_map_to_base.z())
+//             ),
+//             ros::Time(static_cast<double>(timestamp) * kMicroseconds2Seconds),
+//             ConfigParameters::Instance().ros_map_frame_id_,
+//             ConfigParameters::Instance().ros_base_link_frame_id_
+//         )
+//     );
+// }
+
+void System::PublishTF(const Mat4d& pose, TimeStampUs timestamp) {
+    const Eigen::Quaterniond q(pose.block<3, 3>(0, 0));
+    const Vec3d& p = pose.block<3, 1>(0, 3);
+
     tf_broadcaster_.sendTransform(
         tf::StampedTransform(
-            tf::Transform(
-                tf::Quaternion(q_map_to_base.x(), q_map_to_base.y(), q_map_to_base.z(), q_map_to_base.w()),
-                tf::Vector3(p_map_to_base.x(), p_map_to_base.y(), p_map_to_base.z())
-            ),
-            ros::Time(static_cast<double>(timestamp) * kMicroseconds2Seconds),
-            kRosMapFrameID,
-            kRosBaseLinkFrameID
+            tf::Transform(tf::Quaternion(q.x(), q.y(), q.z(), q.w()), tf::Vector3(p.x(), p.y(), p.z())),
+            ros::Time(static_cast<double>(timestamp) * kMicroseconds2Seconds), 
+             ConfigParameters::Instance().ros_map_frame_id_,
+             ConfigParameters::Instance().ros_base_link_frame_id_
         )
     );
 }
-
 void System::VisualizeGlobalMap() {
     CHECK(slam_mode_ == SLAM_MODE::MAPPING) << "VisualizeGlobalMap can only be used in mapping mode!";
 

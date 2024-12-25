@@ -144,7 +144,7 @@ Mat4d FrontEnd::InitOdometer() {
     Eigen::Quaterniond q_curr = curr_cloud_cluster_ptr_->imu_data_.back().orientation_;
     Mat4d init_pose = Mat4d::Identity();
     tf::Transform tf_base_to_lidar;
-    if (GetTransformWithTF(kRosBaseLinkFrameID, kRosLidarFrameID, ros::Time(0),
+    if (GetTransformWithTF(ConfigParameters::Instance().ros_base_link_frame_id_, ConfigParameters::Instance().ros_lidar_frame_id_, ros::Time(0),
                            tf_base_to_lidar)) {
         // Extract translation and rotation
         tf::Vector3 translation = tf_base_to_lidar.getOrigin();
@@ -160,9 +160,11 @@ Mat4d FrontEnd::InitOdometer() {
         init_pose(1, 3) = translation.y();
         init_pose(2, 3) = translation.z();
     }
-    else {
+    else 
+    {
     
     init_pose.block<3, 3>(0, 0) = q_curr.matrix();
+    return init_pose;
     }
 
     if (ConfigParameters::Instance().registration_and_searcher_mode_ == kLoamFull_KdTree) {
@@ -193,7 +195,7 @@ Mat4d FrontEnd::InitOdometer() {
     last_nav_state_.info_ = cov.inverse();
     last_nav_state_.timestamp_ = curr_time_us_;
 
-    delta_pose_ = init_pose;
+    delta_pose_ = Mat4d::Identity();
     last_pose_ = init_pose;
     has_init_ = true;
 

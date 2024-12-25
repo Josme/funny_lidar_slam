@@ -111,6 +111,10 @@ public:
     // sensor topic name
     std::string imu_topic_{};
     std::string lidar_topic_{};
+
+    std::string ros_map_frame_id_{};
+    std::string ros_lidar_frame_id_{};
+    std::string ros_base_link_frame_id_{};
 };
 
 #endif //FUNNY_LIDAR_SLAM_CONFIG_PARAMETERS_H
