@@ -51,12 +51,3 @@ frontend:
         point_to_planar_thres: 0.1
         position_converge_thres: 0.01
         rotation_converge_thres: 0.01
-
-loopclosure:
-    registration_converge_threshold: 1.5
-    skip_near_loopclosure_threshold: 100
-    skip_near_keyframe_threshold: 100
-    candidate_local_map_left_range: 20
-    candidate_local_map_right_range: 20
-    loopclosure_local_map_left_range: 30
-    near_neighbor_distance_threshold: 10.0
